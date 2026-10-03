@@ -1,0 +1,11 @@
+{
+  "mp3_source": {
+    "sounds": [
+      {
+        "name": "note_block_songs:mp3_source",
+        "stream": true,
+        "attenuation_distance": 64
+      }
+    ]
+  }
+}

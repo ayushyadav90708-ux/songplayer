@@ -1,19 +1,20 @@
 {
   "schemaVersion": 1,
-  "id": "noteblocksongs",
+  "id": "note_block_songs",
   "version": "${version}",
   "name": "Note Block Songs",
-  "description": "Synchronized MP3 music played from Note Blocks.",
+  "description": "Play synchronized MP3 songs from Note Blocks.",
   "authors": ["Note Block Songs"],
+  "contact": {},
+  "license": "MIT",
   "environment": "*",
   "entrypoints": {
-    "main": ["com.noteblocksongs.NoteBlockSongs"],
-    "client": ["com.noteblocksongs.client.NoteBlockSongsClient"]
+    "main": ["com.example.noteblocksongs.NoteBlockSongs"],
+    "client": ["com.example.noteblocksongs.client.NoteBlockSongsClient"]
   },
   "depends": {
     "fabricloader": ">=0.18.1",
-    "minecraft": "~1.21.11",
-    "fabric-api": ">=0.141.1+1.21.11",
-    "java": ">=21"
+    "minecraft": "1.21.11",
+    "fabric-api": "*"
   }
 }
