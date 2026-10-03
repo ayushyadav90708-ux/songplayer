@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "id": "noteblocksongs",
+  "version": "${version}",
+  "name": "Note Block Songs",
+  "description": "Play synchronized MP3 songs from Note Blocks.",
+  "authors": ["Note Block Songs"],
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "com.noteblocksongs.NoteBlockSongs"
+    ],
+    "client": [
+      "com.noteblocksongs.client.NoteBlockSongsClient"
+    ]
+  },
+  "depends": {
+    "fabricloader": ">=0.18.1",
+    "minecraft": "~1.21.11",
+    "fabric-api": ">=0.141.1+1.21.11",
+    "java": ">=21"
+  }
+}
