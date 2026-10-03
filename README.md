@@ -1,65 +1,37 @@
-# Note Block Songs
+# Note Block Songs — Version 2 (Minecraft 1.21.11 / Fabric)
 
-Fabric mod for Minecraft Java Edition 1.21.11.
-
-## What it does
-
-- Creates `.minecraft/Songs/` automatically.
-- Detects `.mp3` files.
-- Right-clicking a Note Block opens the Songs screen.
-- The selected MP3 is decoded locally with JLayer.
-- The player sends the selected MP3 bytes to the logical server.
-- The server validates the filename/size and broadcasts the audio to nearby modded clients.
-- Receiving clients cache the MP3 bytes and play the song from the Note Block position.
-- Playback has a configurable distance and volume.
-
-## Important multiplayer behavior
-
-Every listener must have the mod installed. They do **not** need to already have the MP3 in their own Songs folder: the server sends the audio bytes to nearby modded clients and those clients cache/play it.
-
-This implementation intentionally limits transfers to 20 MiB and rejects unsupported/oversized files.
+## What Version 2 fixes
+- Right-click a Note Block to open the Songs GUI.
+- Automatically creates `.minecraft/Songs/`.
+- MP3 search, scrolling, selection, Play, Stop, Refresh and Close controls.
+- Volume slider in the GUI.
+- Client sends the selected MP3 to the server; the server validates it, caches it by SHA-256 and broadcasts it to nearby modded clients.
+- Players nearby can hear a song even if they do not have the MP3 locally.
+- Positional attenuation is handled with OpenAL and the source follows the Note Block while the Minecraft listener follows the player/camera.
+- Active playback is stopped when Stop is pressed or the Note Block is broken.
+- 20 MiB per-song limit and server-side filename/position/hash validation.
 
 ## Build
+Requires Java 21 and internet access for Gradle dependencies.
 
-Use Java 21.
+Windows:
+`gradlew.bat build`
 
-```text
-./gradlew build
-```
+Linux/macOS:
+`./gradlew build`
 
-The remapped JAR is produced in:
+The built JAR is in `build/libs/`.
 
-`build/libs/note-block-songs-1.0.0.jar`
+## Install
+Install Fabric Loader + Fabric API for Minecraft 1.21.11, then put the built mod JAR in `.minecraft/mods/` on the client and on the server if using a dedicated server.
 
-Put the JAR in the Fabric `mods` folder.
+Create `.minecraft/Songs/` automatically by launching the game once with the mod. Drop MP3 files into that folder, right-click a Note Block, select a song and press Play.
 
-## Songs folder
+## Multiplayer
+The server is the relay/cache authority. A client uploads the MP3 once when Play is pressed. The server caches the bytes using the SHA-256 hash and sends the song to compatible clients within 40 blocks of the Note Block. Recipients do not need the MP3 in their own Songs folder.
 
-The mod creates:
+## Important
+This release targets Minecraft 1.21.11 specifically. Minecraft 1.21–1.21.10 should use their own version-specific builds because Minecraft/Fabric mappings and APIs can differ.
 
-`.minecraft/Songs/`
-
-Put MP3 files there.
-
-## Version support
-
-This repository is a real 1.21.11 build. Minecraft 1.21 through 1.21.10 require their own version-specific Fabric/Loom/mappings builds because Minecraft/Fabric APIs changed during the 1.21 release line.
-
-Do not put this 1.21.11 JAR into another Minecraft version.
-
-The intended porting targets are:
-
-1.21, 1.21.1, 1.21.2, 1.21.3, 1.21.4, 1.21.5, 1.21.6, 1.21.7, 1.21.8, 1.21.9, 1.21.10, 1.21.11.
-
-## Security
-
-The server checks:
-
-- file extension
-- canonical path stays inside Songs
-- maximum file size
-- playback range
-- number of active songs per player
-- packet/request structure
-
-For a public server, consider adding an operator-only permission for song playback. The current build uses an application-level 20 MiB limit and Fabric large-payload registration; production deployments may want a smaller configurable limit.
+## Build verification note
+The source and project structure were checked during creation, and the Fabric 1.21.11 API/networking model was cross-checked against Fabric's 1.21.11 API documentation. This environment does not have a Gradle installation and cannot download the Gradle distribution, so I have **not** falsely labeled this ZIP as a successfully compiled JAR. Run the build on a machine with Gradle 8.14.3/network access; fix any mapping/API error reported by your exact local Fabric toolchain before deployment.

@@ -3,16 +3,12 @@
   "id": "noteblocksongs",
   "version": "${version}",
   "name": "Note Block Songs",
-  "description": "Play synchronized MP3 songs from Note Blocks.",
+  "description": "Synchronized MP3 music played from Note Blocks.",
   "authors": ["Note Block Songs"],
   "environment": "*",
   "entrypoints": {
-    "main": [
-      "com.noteblocksongs.NoteBlockSongs"
-    ],
-    "client": [
-      "com.noteblocksongs.client.NoteBlockSongsClient"
-    ]
+    "main": ["com.noteblocksongs.NoteBlockSongs"],
+    "client": ["com.noteblocksongs.client.NoteBlockSongsClient"]
   },
   "depends": {
     "fabricloader": ">=0.18.1",

@@ -6,37 +6,31 @@ plugins {
 version = project.mod_version
 group = project.maven_group
 
-base {
-    archivesName = project.archives_base_name
-}
+base { archivesName = project.archives_base_name }
 
 repositories {
     mavenCentral()
-    maven { url = "https://maven.fabricmc.net/" }
+    maven { url = 'https://maven.fabricmc.net/' }
 }
+
+loom { splitEnvironmentSourceSets() }
 
 dependencies {
     minecraft "com.mojang:minecraft:${project.minecraft_version}"
-    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    mappings loom.officialMojangMappings()
     modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
     modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
 
-    // MP3 decoding. It is bundled into the mod JAR by Loom's include configuration.
-    implementation "javazoom:jlayer:1.0.1"
-    include "javazoom:jlayer:1.0.1"
+    implementation 'javazoom:jlayer:1.0.1'
+    include 'javazoom:jlayer:1.0.1'
 }
 
 processResources {
-    inputs.property "version", project.version
-
-    filesMatching("fabric.mod.json") {
-        expand "version": project.version
-    }
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand version: project.version }
 }
 
-tasks.withType(JavaCompile).configureEach {
-    it.options.release = 21
-}
+tasks.withType(JavaCompile).configureEach { options.release = 21 }
 
 java {
     withSourcesJar()
@@ -45,15 +39,9 @@ java {
 }
 
 jar {
-    from("LICENSE") {
-        rename { "${it}_${project.base.archivesName.get()}" }
-    }
+    from('LICENSE') { rename { "${it}_${project.base.archivesName.get()}" } }
 }
 
 publishing {
-    publications {
-        create("mavenJava", MavenPublication) {
-            from components.java
-        }
-    }
+    publications { create('mavenJava', MavenPublication) { from components.java } }
 }

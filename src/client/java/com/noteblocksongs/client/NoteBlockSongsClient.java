@@ -8,35 +8,24 @@ import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.event.player.UseBlockCallback;
-import net.minecraft.block.Blocks;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.util.ActionResult;
+import net.minecraft.client.Minecraft;
+import net.minecraft.core.BlockPos;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.InteractionResult;
 
 public final class NoteBlockSongsClient implements ClientModInitializer {
-    @Override
-    public void onInitializeClient() {
+    @Override public void onInitializeClient() {
         SongLibrary.init();
-        PositionalSongPlayer.init();
         SongNetworking.registerClient();
-
         UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
-            if (world.getBlockState(hit.getBlockPos()).isOf(Blocks.NOTE_BLOCK)
-                    && hand == net.minecraft.util.Hand.MAIN_HAND) {
-                MinecraftClient client = MinecraftClient.getInstance();
-                if (client.player != null) {
-                    client.setScreen(new SongsScreen(hit.getBlockPos()));
-                }
-                return ActionResult.SUCCESS;
+            if (hand == InteractionHand.MAIN_HAND && world.getBlockState(hit.getBlockPos()).is(Blocks.NOTE_BLOCK)) {
+                Minecraft.getInstance().setScreen(new SongsScreen(hit.getBlockPos()));
+                return InteractionResult.SUCCESS;
             }
-            return ActionResult.PASS;
+            return InteractionResult.PASS;
         });
-
+        ClientTickEvents.END_CLIENT_TICK.register(PositionalSongPlayer::tick);
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> PositionalSongPlayer.shutdown());
-
-        ClientTickEvents.END_CLIENT_TICK.register(client -> {
-            if (client.player != null) {
-                PositionalSongPlayer.tick(client);
-            }
-        });
     }
 }

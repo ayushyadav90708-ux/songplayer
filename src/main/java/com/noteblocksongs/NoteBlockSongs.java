@@ -1,10 +1,11 @@
 package com.noteblocksongs;
 
 import com.noteblocksongs.network.SongNetworking;
+import com.noteblocksongs.server.SongServerState;
 import net.fabricmc.api.ModInitializer;
-import net.fabricmc.fabric.api.event.player.UseBlockCallback;
+import net.fabricmc.fabric.api.event.player.PlayerBlockBreakEvents;
 import net.minecraft.block.Blocks;
-import net.minecraft.util.ActionResult;
+import net.minecraft.server.level.ServerPlayer;
 
 public final class NoteBlockSongs implements ModInitializer {
     public static final String MOD_ID = "noteblocksongs";
@@ -12,13 +13,10 @@ public final class NoteBlockSongs implements ModInitializer {
     @Override
     public void onInitialize() {
         SongNetworking.registerCommon();
-
-        UseBlockCallback.EVENT.register((player, world, hand, hit) -> {
-            if (world.getBlockState(hit.getBlockPos()).isOf(Blocks.NOTE_BLOCK)) {
-                // GUI opening is client-side; the server accepts the interaction normally.
-                return ActionResult.PASS;
+        PlayerBlockBreakEvents.AFTER.register((world, player, pos, state, blockEntity) -> {
+            if (!world.isClient() && state.isOf(Blocks.NOTE_BLOCK) && player instanceof ServerPlayer serverPlayer) {
+                SongServerState.stopAt(serverPlayer.server, serverPlayer.serverLevel(), pos);
             }
-            return ActionResult.PASS;
         });
     }
 }

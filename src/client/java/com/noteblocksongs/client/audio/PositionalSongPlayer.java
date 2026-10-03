@@ -1,106 +1,121 @@
 package com.noteblocksongs.client.audio;
 
-import javazoom.jl.decoder.*;
-import org.lwjgl.openal.AL10;
-import org.lwjgl.BufferUtils;
-
+import javazoom.jl.decoder.Bitstream;
+import javazoom.jl.decoder.Decoder;
+import javazoom.jl.decoder.Header;
+import javazoom.jl.decoder.SampleBuffer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.BlockPos;
+import org.lwjgl.openal.AL10;
 
 import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
 public final class PositionalSongPlayer {
-    private static final Map<String, byte[]> CACHE = new ConcurrentHashMap<>();
-    private static final Map<BlockPos, Active> ACTIVE = new HashMap<>();
-    private static final float DEFAULT_VOLUME = 1.0f;
-    private static final float MAX_DISTANCE = 32.0f;
-
+    private static final Map<BlockPos, Playback> ACTIVE = new ConcurrentHashMap<>();
+    private static float volume = 1.0f;
     private PositionalSongPlayer() {}
 
     public static void init() {}
 
-    public static void play(BlockPos pos, String filename, byte[] mp3) {
-        stop(pos);
-        CACHE.put(filename, mp3);
-
+    public static void play(BlockPos pos, String filename, String hash, UUID session, byte[] mp3) {
+        stop(pos, null);
         try {
-            Pcm pcm = decode(mp3);
-            int buffer = AL10.alGenBuffers();
-            int source = AL10.alGenSources();
-
-            ByteBuffer data = BufferUtils.createByteBuffer(pcm.bytes.length);
-            data.put(pcm.bytes).flip();
-
-            int format = pcm.channels == 1 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_STEREO16;
-            AL10.alBufferData(buffer, format, data, pcm.sampleRate);
-            AL10.alSourcei(source, AL10.AL_BUFFER, buffer);
-            AL10.alSourcef(source, AL10.AL_GAIN, DEFAULT_VOLUME);
-            AL10.alSourcef(source, AL10.AL_REFERENCE_DISTANCE, 4.0f);
-            AL10.alSourcef(source, AL10.AL_MAX_DISTANCE, MAX_DISTANCE);
-            AL10.alSource3f(source, AL10.AL_POSITION, pos.getX() + .5f, pos.getY() + .5f, pos.getZ() + .5f);
-            AL10.alSourcePlay(source);
-
-            ACTIVE.put(pos, new Active(source, buffer));
-        } catch (Exception ignored) {}
+            Decoded decoded = decode(mp3);
+            Playback playback = new Playback(pos.immutable(), hash, session, decoded);
+            playback.start();
+            ACTIVE.put(pos.immutable(), playback);
+        } catch (Throwable t) {
+            System.err.println("[NoteBlockSongs] Could not play " + filename + ": " + t);
+        }
     }
 
-    public static void stop(BlockPos pos) {
-        Active active = ACTIVE.remove(pos);
-        if (active != null) {
-            AL10.alSourceStop(active.source);
-            AL10.alDeleteSources(active.source);
-            AL10.alDeleteBuffers(active.buffer);
-        }
+    public static void stop(BlockPos pos, UUID session) {
+        Playback p = ACTIVE.get(pos);
+        if (p == null) return;
+        if (session != null && !session.equals(p.session)) return;
+        ACTIVE.remove(pos);
+        p.close();
     }
 
     public static void tick(Minecraft client) {
-        Iterator<Map.Entry<BlockPos, Active>> it = ACTIVE.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry<BlockPos, Active> e = it.next();
-            if (AL10.alGetSourcei(e.getValue().source, AL10.AL_SOURCE_STATE) != AL10.AL_PLAYING) {
-                AL10.alDeleteSources(e.getValue().source);
-                AL10.alDeleteBuffers(e.getValue().buffer);
-                it.remove();
-            }
-        }
+        if (client.player == null) return;
+        for (Playback p : ACTIVE.values()) p.tick();
     }
+
+    public static void setVolume(float value) {
+        volume = Math.max(0f, Math.min(1f, value));
+        for (Playback p : ACTIVE.values()) p.applyGain();
+    }
+    public static float volume() { return volume; }
 
     public static void shutdown() {
-        for (BlockPos pos : new ArrayList<>(ACTIVE.keySet())) stop(pos);
-        CACHE.clear();
+        for (Playback p : ACTIVE.values()) p.close();
+        ACTIVE.clear();
     }
 
-    private record Active(int source, int buffer) {}
+    private record Decoded(byte[] pcm, int sampleRate, int channels) {}
 
-    private record Pcm(byte[] bytes, int sampleRate, int channels) {}
-
-    private static Pcm decode(byte[] mp3) throws Exception {
+    private static Decoded decode(byte[] mp3) throws Exception {
         Bitstream stream = new Bitstream(new ByteArrayInputStream(mp3));
         Decoder decoder = new Decoder();
-        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream();
-        Header header;
-        int sampleRate = 44100;
-        int channels = 2;
-
-        while ((header = stream.readFrame()) != null) {
-            SampleBuffer samples = (SampleBuffer) decoder.decodeFrame(header, stream);
-            sampleRate = samples.getSampleFrequency();
-            channels = samples.getChannelCount();
-
-            short[] buffer = samples.getBuffer();
-            int len = samples.getBufferLength();
-            for (int i = 0; i < len; i++) {
-                short s = buffer[i];
-                out.write(s & 0xFF);
-                out.write((s >>> 8) & 0xFF);
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(Math.min(mp3.length * 8, 64 * 1024 * 1024));
+        int rate = 44100, channels = 2;
+        try {
+            Header h;
+            while ((h = stream.readFrame()) != null) {
+                SampleBuffer buffer = (SampleBuffer) decoder.decodeFrame(h, stream);
+                rate = buffer.getSampleFrequency();
+                channels = buffer.getChannelCount();
+                short[] samples = buffer.getBuffer();
+                int count = buffer.getBufferLength();
+                byte[] bytes = new byte[count * 2];
+                for (int i = 0; i < count; i++) {
+                    short s = samples[i];
+                    bytes[i * 2] = (byte) (s & 0xff);
+                    bytes[i * 2 + 1] = (byte) ((s >>> 8) & 0xff);
+                }
+                out.write(bytes);
+                stream.closeFrame();
             }
-            stream.closeFrame();
+        } finally { stream.close(); }
+        return new Decoded(out.toByteArray(), rate, channels);
+    }
+
+    private static final class Playback {
+        final BlockPos pos; final String hash; final UUID session; final Decoded decoded;
+        int buffer = 0, source = 0;
+        Playback(BlockPos pos, String hash, UUID session, Decoded decoded) { this.pos = pos; this.hash = hash; this.session = session; this.decoded = decoded; }
+
+        void start() {
+            int format = decoded.channels == 1 ? AL10.AL_FORMAT_MONO16 : AL10.AL_FORMAT_STEREO16;
+            buffer = AL10.alGenBuffers();
+            source = AL10.alGenSources();
+            ByteBuffer pcm = ByteBuffer.allocateDirect(decoded.pcm.length).order(ByteOrder.nativeOrder());
+            pcm.put(decoded.pcm).flip();
+            AL10.alBufferData(buffer, format, pcm, decoded.sampleRate);
+            AL10.alSourcei(source, AL10.AL_BUFFER, buffer);
+            AL10.alSourcei(source, AL10.AL_LOOPING, AL10.AL_FALSE);
+            AL10.alSourcef(source, AL10.AL_REFERENCE_DISTANCE, 3.0f);
+            AL10.alSourcef(source, AL10.AL_ROLLOFF_FACTOR, 1.0f);
+            AL10.alSourcef(source, AL10.AL_MAX_DISTANCE, 40.0f);
+            applyGain();
+            updatePosition();
+            AL10.alSourcePlay(source);
         }
-        stream.close();
-        return new Pcm(out.toByteArray(), sampleRate, channels);
+
+        void applyGain() { if (source != 0) AL10.alSourcef(source, AL10.AL_GAIN, volume); }
+        void updatePosition() { if (source != 0) AL10.alSource3f(source, AL10.AL_POSITION, pos.getX() + .5f, pos.getY() + .5f, pos.getZ() + .5f); }
+        void tick() {
+            updatePosition();
+            if (source != 0 && AL10.alGetSourcei(source, AL10.AL_SOURCE_STATE) == AL10.AL_STOPPED) close();
+        }
+        void close() {
+            if (source != 0) { AL10.alSourceStop(source); AL10.alDeleteSources(source); source = 0; }
+            if (buffer != 0) { AL10.alDeleteBuffers(buffer); buffer = 0; }
+        }
     }
 }
